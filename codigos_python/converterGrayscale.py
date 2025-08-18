@@ -2,7 +2,7 @@ from PIL import Image
 import numpy as np
 
 # --- CONFIGURAÇÕES ---
-IMG_PATH = r"C:\Users\felip\Documents\uefs\hardware\sd\zoom_digital\images\frieren-orig.jpeg"
+IMG_PATH = r"C:\\Users\\felip\\Documents\\uefs\\hardware\\sd\\zoom_digital\\images\\frieren-orig.jpeg"
 WIDTH, HEIGHT = 320, 240   # resolução da VGA
 OUTPUT_MIF = "image.mif"
 
