@@ -1,7 +1,7 @@
 // Unidade Lógica Aritmética (ULA) usada para convolução
 module ula(
     input  [7:0] A,       // Operando A
-    input  [7:0] B,       // Operando B
+    input  [7:0] B,       // Operando 
     input  [1:0] op,      // Código da operação
     output reg [7:0] R   // Resultado
 );
