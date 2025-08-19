@@ -1,4 +1,4 @@
-module vga_controller(
+module vga_controller_top #(
     input clk_in, // 100 MHz
     input rst, // Reset signal
     output h_sync,
@@ -15,8 +15,8 @@ module vga_controller(
 
 
     clock_divider clk_div (
-        .clk_100mhz(clk_in),
-        .clk_25mhz(clk_25mhz)
+        .clk_in(clk_in),
+        .clk_out(clk_25mhz)
     );
 
 

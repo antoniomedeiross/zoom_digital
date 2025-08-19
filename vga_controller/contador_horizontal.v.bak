@@ -9,7 +9,7 @@ module contador_horizontal (
     always @(posedge clk_25mhz) begin
         if (rst) begin
             h_value <= 0;
-        end else if (h_value < 799) begin
+        else if (h_value < 799) begin
             h_value <= h_value + 1;  // Increment horizontal counter until 800
             ativa_v_counter <= 0;    // Desativa vertical counter enquanto h_value < 800
         end else begin

@@ -2,7 +2,7 @@ module contador_vertical (
     input clk_25mhz,
     input rst,
     input ativa_v_counter,
-    output reg [15:0] v_value = 0
+    output reg [15:0] v_value = 0,
     );
 
 
