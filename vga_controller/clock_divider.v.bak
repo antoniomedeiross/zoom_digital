@@ -1,6 +1,6 @@
 module clock_divider (
     input clk_100mhz, // CLK 100MHz
-    output reg clk_25mhz  // CLK 25MHz
+    output clk_25mhz  // CLK 25MHz
 );
     
     reg [1:0] cont;
