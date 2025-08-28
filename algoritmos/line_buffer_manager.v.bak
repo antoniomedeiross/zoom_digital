@@ -1,0 +1,95 @@
+////////////////////////////////////////////////////////////////////////////////
+// Módulo Gerenciador de Buffer Triplo (Ping-Pong-Pung)
+// Garante um fluxo de dados contínuo para o consumidor, sem "buracos".
+////////////////////////////////////////////////////////////////////////////////
+module line_buffer_manager #(
+    parameter LINE_DEPTH = 320,
+    parameter PIXEL_WIDTH = 8
+)(
+    // --- Interface Global ---
+    input  clk,
+    input  rst,
+
+    // --- Interface de Escrita (para a fonte de dados) ---
+    input  [PIXEL_WIDTH-1:0] pixel_in,
+    input  valid_in,
+    output ready_out_write,
+
+    // --- Interface de Leitura (para o algoritmo de zoom) ---
+    output             valid_out_zoom,
+    input              ready_in_zoom,
+    output [PIXEL_WIDTH-1:0] data_out_zoom,
+
+    // --- Controle de Repetição de Linha ---
+    input              repeat_line
+);
+
+    localparam ADDR_WIDTH = $clog2(LINE_DEPTH);
+
+    // --- Três Memórias de Linha ---
+    reg [PIXEL_WIDTH-1:0] mem [0:2] [0:LINE_DEPTH-1];
+
+    // --- Ponteiros de Buffer (qual dos 3 buffers estamos usando) ---
+    reg [1:0] write_buf_idx; // Índice do buffer sendo escrito (0, 1 ou 2)
+    reg [1:0] read_buf_idx;  // Índice do buffer sendo lido (0, 1 ou 2)
+
+    // --- Status de cada buffer ---
+    reg [2:0] buf_is_full; // Flag de 3 bits: buf_is_full[i] = 1 se o buffer 'i' está cheio
+
+    // --- Ponteiros de Endereço (posição dentro de uma linha) ---
+    reg [ADDR_WIDTH-1:0] wr_ptr;
+    reg [ADDR_WIDTH-1:0] rd_ptr;
+
+    // --- Lógica de Handshake ---
+    wire write_handshake_go = valid_in && ready_out_write;
+    wire read_handshake_go  = valid_out_zoom && ready_in_zoom;
+
+    // --- Lógica de Controle de Escrita ---
+    // Estamos prontos para escrever se o buffer atual não estiver cheio.
+    assign ready_out_write = !buf_is_full[write_buf_idx];
+
+    always @(posedge clk or posedge rst) begin
+        if (rst) begin
+            wr_ptr <= 0;
+            write_buf_idx <= 0;
+        end else if (write_handshake_go) begin
+            mem[write_buf_idx][wr_ptr] <= pixel_in;
+            if (wr_ptr == LINE_DEPTH - 1) begin
+                wr_ptr <= 0;
+                // Marca o buffer atual como cheio e avança para o próximo
+                buf_is_full[write_buf_idx] <= 1'b1;
+                write_buf_idx <= write_buf_idx + 1; // Avança para o próximo buffer
+            end else begin
+                wr_ptr <= wr_ptr + 1;
+            end
+        end
+    end
+
+    // --- Lógica de Controle de Leitura ---
+    // A saída é válida se o buffer de leitura atual está marcado como cheio.
+    assign valid_out_zoom = buf_is_full[read_buf_idx];
+    assign data_out_zoom = mem[read_buf_idx][rd_ptr];
+
+    always @(posedge clk or posedge rst) begin
+        if (rst) begin
+            rd_ptr <= 0;
+            read_buf_idx <= 0;
+            buf_is_full <= 3'b000;
+        end else begin
+            if (repeat_line) begin
+                // Rebobina o ponteiro da linha atual, mas NÃO troca de buffer
+                rd_ptr <= 0;
+            end else if (read_handshake_go) begin
+                if (rd_ptr == LINE_DEPTH - 1) begin
+                    rd_ptr <= 0;
+                    // Marca o buffer atual como vazio e avança para o próximo
+                    buf_is_full[read_buf_idx] <= 1'b0;
+                    read_buf_idx <= read_buf_idx + 1; // Avança para o próximo buffer
+                end else begin
+                    rd_ptr <= rd_ptr + 1;
+                end
+            end
+        end
+    end
+
+endmodule

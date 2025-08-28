@@ -1,53 +1,79 @@
-// Codigo que faz o buffer de linha
+module line_buffer (
+    // --- Interface Global ---
+    input           clk,
+    input           rst,
 
-module line_Buffer(
-    input clk_in, 
-    input rst_in,
-    input [7:0] data_in, // dado de entrada
-    input data_valida_in, // indica se o dado de entrada é válido
-    output [7:0] data_out_zoom, // dado de saída do zoom
-    output [23:0] data_out_convolucao, // dado de saída da convolução (3 pixels)
+    // --- Interface de Escrita (para o gerador de pixels) ---
+    input   [7:0]   pixel_in,
+    input           valid_in,
+    output          ready_out_write,
+    output  reg     line_full,
+    input           clear_line_full_flag,
 
-    input rd_data_in, // indica se a leitura dos dados é válida
-
-    input repeat_line_buffer,
-    output end_line
+    // --- Interface de Leitura (para o zoom) ---
+    output          valid_out_zoom,
+    input           ready_in_zoom,
+    output  [7:0]   data_out_zoom,      // <-- CORREÇÃO: Não é mais 'reg'
+    output  [23:0]  data_out_convolucao,
+    input           repeat_line
 );
 
+    // --- Parâmetros ---
+    parameter LINE_DEPTH = 4;
+    parameter PIXEL_WIDTH = 8;
+    localparam ADDR_WIDTH = $clog2(LINE_DEPTH);
 
-// Buffer da linha: armazena 320 pixels de uma linha
-reg[7:0] line [319:0]; 
-reg[8:0] wr_ptr; // ponteiro de escrita
-reg[8:0] rd_ptr; // ponteiro de leitura
+    // --- Sinais Internos ---
+    reg [PIXEL_WIDTH-1:0]   line_mem [LINE_DEPTH-1:0];
+    reg [ADDR_WIDTH-1:0]    wr_ptr;
+    reg [ADDR_WIDTH-1:0]    rd_ptr;
 
+    // --- Lógica de Handshake ---
+    assign ready_out_write = !line_full;
+    wire   write_handshake_go = valid_in && ready_out_write;
+    wire   zoom_handshake_go = valid_out_zoom && ready_in_zoom;
 
-// Saída de 1 pixels    
-assign data_out_zoom = {line[rd_ptr]}; 
-// Concatena os 3 pixels para formar a janela de saída 
-assign data_out_convolucao = {line[rd_ptr], line[rd_ptr + 1], line[rd_ptr + 2]};
-
-
-// Atualiza ponteiro de leitura OU le a linha novamente
-always @(posedge clk_in)
-begin
-    if(rst_in || repeat_line_buffer) begin
-        rd_ptr <= 'd0;
-    end else if(rd_data_in) begin
-        rd_ptr <= rd_ptr + 'd1;
+    // --- Lógica de Escrita ---
+    always @(posedge clk or posedge rst) begin
+        if (rst) begin
+            wr_ptr    <= 0;
+            line_full <= 1'b0;
+        end else if (clear_line_full_flag) begin
+            line_full <= 1'b0;
+        end else if (write_handshake_go) begin // <-- MELHORIA: Usando o wire para clareza
+            line_mem[wr_ptr] <= pixel_in;
+            if (wr_ptr == LINE_DEPTH - 1) begin
+                line_full <= 1'b1;
+                wr_ptr    <= 0;
+            end else begin
+                wr_ptr <= wr_ptr + 1;
+            end
+        end
     end
-end
 
-// Escrita no buffer + controle de data_valida_out + wr_ptr
-always @(posedge clk_in) begin
-    if(rst_in) begin
-        wr_ptr <= 'd0;
-    end else if(data_valida_in) begin
-        line[wr_ptr] <= data_in;
-        end_line <= (wr_ptr == 2);
-        wr_ptr <= wr_ptr + 'd1;
-    end else begin
+    // --- Lógica de Leitura ---
+    always @(posedge clk or posedge rst) begin
+        if (rst) begin
+            rd_ptr <= 0;
+        end else if (repeat_line) begin
+            rd_ptr <= 0;
+        end else if (zoom_handshake_go) begin
+            rd_ptr <= rd_ptr + 1;
+        end
     end
-end
 
+    // --- Lógica de Saída ---
+    // A saída é válida se a linha está cheia E o ponteiro está dentro dos limites.
+    assign valid_out_zoom = line_full && (rd_ptr < LINE_DEPTH);
+
+    // A saída de dados é uma leitura direta (combinacional) da memória.
+    assign data_out_zoom = line_mem[rd_ptr];
+
+    // A saída de convolução permanece a mesma.
+    assign data_out_convolucao = {
+        line_mem[rd_ptr],
+        (rd_ptr < LINE_DEPTH - 2) ? line_mem[rd_ptr + 1] : 8'b0,
+        (rd_ptr < LINE_DEPTH - 2) ? line_mem[rd_ptr + 2] : 8'b0
+    };
 
 endmodule

@@ -1,0 +1,48 @@
+module zoom_horizontal(
+    input             clk,
+    input             rst,
+    input       [7:0] pixel_in,        // Pixel vindo do line buffer
+    input             pixel_valid_in,  // Indica que o pixel_in é válido
+    output reg  [7:0] pixel_out,       // Pixel processado (zoom aplicado)
+    output reg        pixel_valid_out, // Pixel de saída válido
+    input       [1:0] zoom_in          // 1 = zoom in 2x, 0 = zoom out 1/2x
+);
+
+    reg [7:0] last_pixel;   // Guarda o último pixel lido
+    reg       repeat_pixel; // Controla repetição horizontal
+
+    always @(posedge clk or posedge rst) begin
+        if (rst) begin
+            pixel_out       <= 0;
+            pixel_valid_out <= 0;
+            last_pixel      <= 0;
+            repeat_pixel    <= 0;
+        end else if (pixel_valid_in) begin
+            if (zoom_in) begin
+                // Zoom in 2x (repete o pixel)
+                if (~repeat_pixel) begin
+                    pixel_out       <= pixel_in;
+                    last_pixel      <= pixel_in;
+                    repeat_pixel    <= 1;
+                end else begin
+                    pixel_out       <= last_pixel;
+                    repeat_pixel    <= 0;
+                end
+                pixel_valid_out <= 1;
+            end else begin
+                // Zoom out 1/2x (descarta 1 pixel a cada 2)
+                if (~repeat_pixel) begin
+                    pixel_out       <= pixel_in;
+                    repeat_pixel    <= 1;
+                    pixel_valid_out <= 1;
+                end else begin
+                    repeat_pixel    <= 0;
+                    pixel_valid_out <= 0;
+                end
+            end
+        end else begin
+            pixel_valid_out <= 0;
+        end
+    end
+
+endmodule
